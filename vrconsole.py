@@ -3,17 +3,14 @@ import cvzone
 from cvzone.FaceMeshModule import FaceMeshDetector
 from cvzone.HandTrackingModule import HandDetector
 from cvzone.PoseModule import PoseDetector
-
 import threading
-
 import time
 import pyautogui
 import numpy as np
 import mouse
-import mediapipe as mp
 import pandas as pd
-
-
+import math
+webcam = 0
 exit_status = -1
 go_right = 0
 go_left = 0
@@ -25,6 +22,68 @@ misle_coldwn = 0
 flare_coldwn = 0
 fire_on = 0
 booster_coldwn =0
+
+
+# Racing
+
+def r_side_steer():
+    global right_steer_thread
+    global right_hand_op
+    pyautogui.keyDown("Left")
+    pyautogui.keyUp("Right")
+    print("Right")
+    right_steer_thread = threading.Thread(target=r_side_steer)
+
+def l_side_steer():
+    global left_steer_thread
+    global left_hand_op
+    pyautogui.keyDown("Right")
+    pyautogui.keyUp("Left")
+    print("Left")
+    left_steer_thread = threading.Thread(target= l_side_steer)
+
+def s_side_steer():
+    global strght_steer_thread
+    pyautogui.keyUp("Left")
+    pyautogui.keyUp("Right")
+    print("Straight")
+    strght_steer_thread = threading.Thread(target= s_side_steer)
+
+
+def nitro_coldwn_func():
+    global nitro_coldwn
+    global nitro_coldwn_thread
+    time.sleep(2)
+    nitro_coldwn = 0
+    print("nitros reloaded")
+    nitro_coldwn_thread = threading.Thread(target=nitro_coldwn_func)
+
+
+left_steer_on = 0
+right_steer_on = 0
+strght_steer_on = 1
+nitro_coldwn = 0
+brake_on = 0
+
+right_steer_thread = threading.Thread(target=r_side_steer)
+left_steer_thread = threading.Thread(target= l_side_steer)
+strght_steer_thread = threading.Thread(target= s_side_steer)
+nitro_coldwn_thread = threading.Thread(target=nitro_coldwn_func)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def exit_stat_change():
     global exit_status
     print("change")
@@ -61,14 +120,37 @@ def booster_coldwn_func():
     print("Boosters cooling down")
     booster_coldwn_thread = threading.Thread(target=booster_coldwn_func)
 
+
+def right_hand_dual():
+    global right_dual_thread
+    global right_hand_op
+    pyautogui.keyDown("Right")
+    right_dual_thread = threading.Thread(target=right_hand_dual)
+
+
+def left_hand_dual():
+    global left_dual_thread
+    global left_hand_op
+    pyautogui.keyDown("Left")
+    left_dual_thread = threading.Thread(target=left_hand_dual)
+
+
+right_dual_thread = threading.Thread(target=right_hand_dual)
+left_dual_thread = threading.Thread(target=left_hand_dual)
+
+
+
+
 gesture_on_thread = threading.Thread(target=ges_enable)
 misle_coldwn_thread = threading.Thread(target=misle_cooldown_func)
 flare_coldwn_thread = threading.Thread(target=flare_coldwn_func)
 booster_coldwn_thread = threading.Thread(target=booster_coldwn_func)
-
+right_dual_thread = threading.Thread(target=right_hand_dual)
+left_dual_thread = threading.Thread(target= left_hand_dual)
 
 def activate(mode,mode_ctrl_state):
-    cap = cv2.VideoCapture(1)
+    global webcam
+    cap = cv2.VideoCapture(webcam)
     cam_w, cam_h = 640, 480
     cap.set(3, cam_w)
     cap.set(4, cam_h)
@@ -76,11 +158,15 @@ def activate(mode,mode_ctrl_state):
     global go_right, go_left, go_up, go_down, ges_ctrl_track, gesture_on, misle_coldwn, flare_coldwn,fire_on, booster_coldwn
     global gesture_on_thread, misle_coldwn_thread, flare_coldwn_thread, booster_coldwn_thread
     global exit_status
+    global right_dual_thread,left_dual_thread
     charac_pos = [0, 1, 0]
     index_pos = 1
     fixedx = None
     fixedy = None
     rec = None
+
+    global left_steer_thread,right_steer_thread,strght_steer_thread,nitro_coldwn_thread
+    global left_steer_on, right_steer_on, strght_steer_on, nitro_coldwn, brake_on
 
     ######## Csv Control Files ################
     df_flight = pd.read_csv("flight_ctrl.csv")
@@ -96,13 +182,21 @@ def activate(mode,mode_ctrl_state):
     fire_on = 0
     booster_coldwn = 0
     print("load")
+    left_hand_op = 0
+    right_hand_op = 0
+
+
+
     fpsReader = cvzone.FPS()
     face_detect = FaceMeshDetector(maxFaces=1)
-    hand_detect = HandDetector(maxHands=2, detectionCon=0.75)
-    pose_detect = PoseDetector()
+    if mode ==2:
+        hand_detect = HandDetector(maxHands=2, detectionCon=0.5)
+    else:
+        hand_detect = HandDetector(maxHands=2, detectionCon=0.75)
+  #  hand_detect = HandDetector(maxHands=2, detectionCon=0.5)
+    pose_detect = PoseDetector(detectionCon= 0.75, trackCon=0.7)
     exit_status = -1
     while True:
-        print(exit_status)
         success, img = cap.read()
         if success:
             img = cv2.flip(img, 1)
@@ -226,13 +320,13 @@ def activate(mode,mode_ctrl_state):
                         booster_coldwn_thread.start()
 
                 fps, img = fpsReader.update(img, pos=(50, 80), color=(0, 255, 0), scale=5, thickness=5)
-                cv2.imshow("Camera Feed", img)
+                cv2.imshow("Flight", img)
 
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+                if cv2.waitKey(1) & 0xFF == ord('o'):
+                    exit_status =0
 
             #Fruit Ninja
-            elif mode == 1:
+            elif mode == 7:
                 hands, img = hand_detect.findHands(img)
                 cv2.rectangle(img, (frameR, frameR), (cam_w - frameR, cam_h - frameR), (255, 0, 255), 2)
                 if hands:
@@ -245,10 +339,11 @@ def activate(mode,mode_ctrl_state):
                     fingers = hand_detect.fingersUp(hands[0])
                     if fingers[4] == 1:
                         pyautogui.mouseDown()
-                cv2.imshow("Camera Feed", img)
-                cv2.waitKey(1)
+                cv2.imshow("Fruit Ninja", img)
+                if cv2.waitKey(1) & 0xFF == ord('o'):
+                    exit_status =0
 
-            #Hillclimb
+            #single hand
             elif mode == 4:
                 hand, img = hand_detect.findHands(img)
                 if hand and hand[0]["type"] == "Left":
@@ -256,14 +351,15 @@ def activate(mode,mode_ctrl_state):
                     totalFingers = fingers.count(1)
                     print(totalFingers)
                     cv2.putText(img, f'Fingers:{totalFingers}', (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
-                    if totalFingers == 5:
-                        pyautogui.keyDown("right")
-                        pyautogui.keyUp('left')
                     if totalFingers == 0:
-                        pyautogui.keyDown("left")
+                        pyautogui.keyDown("right")
+                        # pyautogui.keyUp('left')
+                    if totalFingers == 5:
+                        # pyautogui.keyDown("left")
                         pyautogui.keyUp("right")
-                cv2.imshow('Camera Feed', img)
-                cv2.waitKey(1)
+                cv2.imshow('Single Hand', img)
+                if cv2.waitKey(1) & 0xFF == ord('o'):
+                    exit_status =0
 
             #Subway
             elif mode == 2:
@@ -354,9 +450,10 @@ def activate(mode,mode_ctrl_state):
                 #     cv2.line(img, (0, fixedy + rec), (width, fixedy + rec), (0, 0, 0), 2)
 
                 cv2.imshow('Subway Surfers', img)
-                cv2.waitKey(1)
+                if cv2.waitKey(1) & 0xFF == ord('o'):
+                    exit_status =0
             # jump
-            elif mode == 5:
+            elif mode == 6:
                 img = cv2.resize(img, (440, 330))
                 height, width, channel = img.shape
                 width_hf = int(width / 2)
@@ -414,10 +511,112 @@ def activate(mode,mode_ctrl_state):
                 #     cv2.line(img, (0, fixedy - 24), (width, fixedy - 24), (0, 0, 0), 2)
                 #     cv2.line(img, (0, fixedy + rec), (width, fixedy + rec), (0, 0, 0), 2)
 
-                cv2.imshow('Subway Surfers', img)
-                cv2.waitKey(1)
+                cv2.imshow('Jump', img)
+                if cv2.waitKey(1) & 0xFF == ord('o'):
+                    exit_status =0
+            # Dual hand
+            elif mode == 1:
+                hands, img = hand_detect.findHands(img, draw=True, flipType=False)
+                if len(hands) == 2:
+                    if hands[0]['type'] == "Left":
+                        hands_l, hands_r = hands[0], hands[1]
+                    else:
+                        hands_l, hands_r = hands[1], hands[0]
+                    l_fing_upno = hand_detect.fingersUp(hands_l)
+                    r_fing_upno = hand_detect.fingersUp(hands_r)
+                    if (l_fing_upno.count(1) == 4) and left_hand_op == 0:
+                        left_hand_op = 1
+                        left_dual_thread.start()
+                        print("left open")
+                    if (l_fing_upno.count(0) == 4) and left_hand_op == 1:
+                        pyautogui.keyUp("left")
+                        left_hand_op = 0
+                    if (r_fing_upno.count(1) == 4) and right_hand_op == 0:
+                        right_hand_op = 1
+                        right_dual_thread.start()
+                        print("right open")
+                    if (r_fing_upno.count(0) == 4) and right_hand_op == 1:
+                        pyautogui.keyUp("right")
+                        right_hand_op = 0
+
+                fps, img = fpsReader.update(img, pos=(50, 80), color=(0, 255, 0), scale=5, thickness=5)
+                cv2.imshow("Dual Hands", img)
+
+                if cv2.waitKey(1) & 0xFF == ord('o'):
+                    exit_status =0
+
+            # Racing
+            elif mode == 5:
+                hands, img = hand_detect.findHands(img, draw=True)
+                if len(hands) == 2:
+                    if hands[0]['type'] == "Left":
+                        hands_l, hands_r = hands[0], hands[1]
+                    else:
+                        hands_l, hands_r = hands[1], hands[0]
+
+                    lmlist_l, lmlist_r = hands_l['lmList'], hands_r['lmList']
+
+                    r_sp_x, r_sp_y = lmlist_r[9][0], lmlist_r[9][1]
+                    l_sp_x, l_sp_y = lmlist_l[9][0], lmlist_l[9][1]
+                    r_idx_x, r_idx_y = lmlist_r[6][0], lmlist_r[6][1]
+                    l_idx_x, l_idx_y = lmlist_l[6][0], lmlist_l[6][1]
+                    r_thmb_x, r_thmb_y = lmlist_r[4][0], lmlist_r[4][1]
+                    l_thmb_x, l_thmb_y = lmlist_l[4][0], lmlist_l[4][1]
+                    cen_x = l_sp_x + (r_sp_x - l_sp_x) // 2
+                    cen_y = (r_sp_y + l_sp_y) // 2
+
+                    cv2.circle(img, (r_sp_x, r_sp_y), 5, (0, 255, 255), 2)
+                    cv2.circle(img, (l_sp_x, l_sp_y), 5, (0, 255, 255), 2)
+                    cv2.circle(img, (cen_x, cen_y), 5, (0, 255, 255), 5)
+                    # cv2.line(img,(cen_x, 0), (cen_x,1000), (0,0,0),5)
+                    # cv2.line(img,(0, cen_y), (1000, cen_y), (0,0,0),5)
+                    cv2.line(img, (r_sp_x, r_sp_y), (l_sp_x, l_sp_y), (0, 0, 0), 5)
+                    # print(abs(r_sp_y-cen_y),abs(l_sp_y-cen_y))
+                    distance = math.sqrt((r_sp_x - l_sp_x) ** 2 + (r_sp_y - l_sp_y) ** 2)
+                    # print(distance)
+
+                    if distance <= 260:
+                        cv2.circle(img, (cen_x, cen_y), 80, (0, 255, 255), 5)
+                        # Left Steer
+                        if abs(r_sp_y - cen_y) > 40 and r_sp_y < cen_y and left_steer_on == 0:
+                            left_steer_on = 1
+                            strght_steer_on = 0
+                            left_steer_thread.start()
+                        # Right Steer
+                        if abs(r_sp_y - cen_y) > 40 and r_sp_y > cen_y and right_steer_on == 0:
+                            print("Right steer")
+                            right_steer_on = 1
+                            strght_steer_on = 0
+                            right_steer_thread.start()
+                        # Going Straight
+                        if abs(r_sp_y - cen_y) < 40 and strght_steer_on == 0:
+                            right_steer_on = 0
+                            left_steer_on = 0
+                            strght_steer_on = 1
+                            strght_steer_thread.start()
 
 
+                        # nitros Deploying
+                        elif abs(r_thmb_y - r_idx_y) > 30 and abs(l_thmb_y - l_idx_y) < 30 and nitro_coldwn == 0:
+                            nitro_coldwn = 1
+                            print("nitros Deployed")
+                            pyautogui.press("Space")
+                            nitro_coldwn_thread.start()
+
+                        elif abs(r_thmb_y - r_idx_y) < 30 and abs(l_thmb_y - l_idx_y) > 30 and brake_on == 0:
+                            pyautogui.keyDown("down")
+                            brake_on = 1
+                            print("Braking")
+                        if abs(r_thmb_y - r_idx_y) > 30 and brake_on == 1:
+                            pyautogui.keyUp("down")
+                            brake_on = 0
+                            print("Going")
+
+               # fps, img = fpsReader.update(img, pos=(50, 80), color=(0, 255, 0), scale=5, thickness=5)
+                cv2.imshow("Racing", img)
+
+                if cv2.waitKey(1) & 0xFF == ord('o'):
+                    exit_status = 0
         if exit_status ==0:
             cap.release()
             cv2.destroyAllWindows()
