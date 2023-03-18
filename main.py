@@ -1,3 +1,139 @@
+import sys
+import tkinter as tk
+from PIL import Image, ImageTk
+from libs import button, back_button, activate_button
+import vrconsole as vr
+import threading
+import vr_sharing as vshare
+from GAME_MODE import DUAL_HAND_MODE, FLIGHT_CONTROL_MODE, FRUITNINJA_MODE, FULLBODY_MODE, JUMP_MODE, RACING_MODE, SINGLE_HAND_MODE
+
+LARGEFONT = ("Verdana", 20)
+BG_COLOR = '#242424'
+game_mode = 0
+game_ctrl_state = 0
+
+
+def console_active():
+    global game_mode
+    global game_ctrl_state
+    global console_active_thread
+    vr.activate(game_mode, game_ctrl_state)
+    console_active_thread = threading.Thread(target=console_active)
+
+
+def exit_change_call():
+    global exit_active_thread
+    vr.exit_stat_change()
+    exit_active_thread = threading.Thread(target=exit_change_call)
+
+
+def vr_active_call():
+    global vr_active_thread
+    vshare.vr_mode_run()
+    vr_active_thread = threading.Thread(target=vr_active_call, daemon=True)
+
+
+def vr_deactive_call():
+    global vr_deactive_thread
+    vshare.vr_mode_exit()
+    vr_deactive_thread = threading.Thread(target=vr_deactive_call)
+
+
+console_active_thread = threading.Thread(target=console_active)
+exit_active_thread = threading.Thread(target=exit_change_call)
+vr_active_thread = threading.Thread(target=vr_active_call, daemon=True)
+vr_deactive_thread = threading.Thread(target=vr_deactive_call)
+
+vr_active_thread.start()
+def toggle_mode(new_mode, frame: tk.Frame):
+    global mod
+    app.mode.set(new_mode if app.mode.get() != new_mode else 0)
+    print(app.mode.get())
+    if app.mode.get() == new_mode:
+        frame.toggle_activate.config(
+            text=f"Deactivate", bg='#EA3A0D', fg='white')
+    else:
+        frame.toggle_activate.config(
+            text=f"Activate", bg='#5dff5d', fg='black')
+
+
+class App(tk.Tk):
+    # __init__ function for class tkinterApp
+    def __init__(self, *args, **kwargs):
+        # __init__ function for class Tk
+        tk.Tk.__init__(self, *args, **kwargs)
+
+        self.logo = tk.PhotoImage(file='assets/XENTURE_logo.png')
+        self.iconphoto(False, self.logo)
+
+        self.mode = tk.IntVar()
+
+        if sys.platform == 'darwin' or sys.platform.startswith('win'):
+            self.geometry("1500x800")
+        else:
+            self.geometry('1100x800')
+
+        self.title('Xenture')
+
+        # App bavkground
+        bg_img = Image.open('assets/bg.webp')
+        imgdata = ImageTk.PhotoImage(bg_img)
+        bg = tk.Label(self, image=imgdata, bg=BG_COLOR)
+        bg.image = imgdata
+        bg.place(x=0, y=0)
+
+        # App bar at the top
+        appbar = tk.Label(self, text="Xenture", font=(
+            'Arial', 16, 'bold'), bg='#4DAA57', padx=70, pady=15, borderwidth=5, anchor='w',)
+        appbar.place(relwidth=1, x=0, y=0)
+
+        # App logo in app bar
+        app_icon_img = Image.open('assets/XENTURE_icon.png').resize((50, 50))
+        img = ImageTk.PhotoImage(app_icon_img)
+        app_icon = tk.Label(self, image=img, bg='#4DAA57')
+        app_icon.image = img
+        app_icon.place(x=10, y=6)
+
+        container = tk.Frame(self)
+        container.pack(anchor="c", fill="none", expand=True)
+
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        # An auto update variable for gesture mode
+        # Which gesture control to use
+        self.mode.initialize(0)
+        self.mode.trace('w', self.on_change_mode)
+
+        # initializing frames to an empty array
+        self.frames = {}
+
+        # iterating through a tuple consisting
+        # of the different page layouts
+        for F in (MainPage, DualHandPage, FullBodyPage, AircraftSteeringPage, SingleHandPage, RacingPage, FruitNinjaPage, JumpPage, VRPage):
+            frame = F(container, self)
+            # frame.configure()
+            self.frames[F] = frame
+            frame.grid(sticky="nsew", row=0, column=0)
+
+        self.show_frame(MainPage)
+
+        # Status bar
+        self.statusbar = tk.Label(self, text="No mode is active", fg="red", bg='black', font=(
+            'Verdana', 11), relief=tk.SUNKEN, anchor="w")
+        self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+    # to display the current frame passed as
+    # parameter
+    def show_frame(self, cont):
+        frame = self.frames[cont]
+        frame.tkraise()
+
+    def on_change_mode(self, *args):
+        global game_mode
+        global console_active_thread
+        if self.mode.get() == DUAL_HAND_MODE:
+            self.statusbar.configure(
                 text='Dual hand gesture is active', fg='lightgreen')
             print(self.mode.get())
             game_mode = self.mode.get()
@@ -24,6 +160,7 @@
             game_mode = self.mode.get()
             console_active_thread.start()
             # Aircraft steering code
+            # vr.activate()
             pass
         elif self.mode.get() == SINGLE_HAND_MODE:
             self.statusbar.configure(
@@ -56,7 +193,6 @@
             game_mode = self.mode.get()
             console_active_thread.start()
             # Jump gesture code
-            pass
         else:
             self.statusbar.configure(text='No mode is active', fg='red')
             print(self.mode.get())
@@ -145,7 +281,7 @@ class SubPage(tk.Frame):
             row=2, column=5, pady=15, padx=15, sticky='nsew')
 
         self.vr_btn = button(
-            self, text="ADD VR", command=lambda: self.on_vr_btn_clicked(controller))
+            self, text="VR Mode", command=lambda: self.on_vr_btn_clicked(controller))
         self.vr_btn.configure(bg="#228CDB", fg="#27138b", width=15)
         self.vr_btn.grid(row=2, column=0, pady=15, padx=15, sticky='nsew')
 
@@ -165,7 +301,7 @@ class SubPage(tk.Frame):
 class DualHandPage(SubPage):
     def __init__(self, parent: tk.Frame, controller: App):
         super().__init__(parent, controller)
-        self.page_mode = 1
+        self.page_mode = DUAL_HAND_MODE
         self.title = "Dual hand gesture control"
         self.frame = self
         self.titleLabel = tk.Label(
@@ -174,14 +310,15 @@ class DualHandPage(SubPage):
                              padx=15, pady=15, sticky='nsew')
 
         self.key_data = [
-            {'name': 'up', 'key': 'W', 'label': 'UP'},
-            {'name': 'down', 'key': 'S', 'label': 'DOWN'},
-            {'name': 'left', 'key': 'A', 'label': 'LEFT'},
-            {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
-            {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
-            {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
-            {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
-            {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
+            {'name': 'up', 'key': 'R_Key press', 'label': 'R_Hand Open'},
+            {'name': 'left', 'key': 'R_Key release', 'label': 'R_Hand Close'},
+            {'name': 'left', 'key': 'L_Key release', 'label': 'L_Hand Close'},
+            {'name': 'down', 'key': 'L_Key press', 'label': 'L_Hand Open'},
+            # {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
+            # {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
+            # {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
+            # {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
+            # {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
         ]
         self.keys = []
         for i, key in enumerate(self.key_data):
@@ -195,7 +332,7 @@ class DualHandPage(SubPage):
 class FullBodyPage(SubPage):
     def __init__(self, parent: tk.Frame, controller: App):
         super().__init__(parent, controller)
-        self.page_mode = 2
+        self.page_mode = FULLBODY_MODE
         self.title = "Full body gesture control"
         self.frame = self
         self.titleLabel = tk.Label(
@@ -204,14 +341,14 @@ class FullBodyPage(SubPage):
                              padx=15, pady=15, sticky='nsew')
 
         self.key_data = [
-            {'name': 'up', 'key': 'W', 'label': 'UP'},
-            {'name': 'down', 'key': 'S', 'label': 'DOWN'},
-            {'name': 'left', 'key': 'A', 'label': 'LEFT'},
-            {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
-            {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
-            {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
-            {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
-            {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
+            {'name': 'left', 'key': 'Left_Key', 'label': 'LEFT'},
+            {'name': 'up', 'key': 'Up_Key', 'label': 'JUMP'},
+            {'name': 'down', 'key': 'Down_Key', 'label': 'DOWN'},
+            {'name': 'right', 'key': 'Right_Key', 'label': 'RIGHT'},
+            # {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
+            # {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
+            # {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
+            # {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
         ]
 
         self.keys = []
@@ -226,7 +363,7 @@ class FullBodyPage(SubPage):
 class AircraftSteeringPage(SubPage):
     def __init__(self, parent: tk.Frame, controller: App):
         super().__init__(parent, controller)
-        self.page_mode = 3
+        self.page_mode = FLIGHT_CONTROL_MODE
         self.title = "Flight control gesture"
         self.frame = self
         self.titleLabel = tk.Label(
@@ -234,18 +371,18 @@ class AircraftSteeringPage(SubPage):
         self.titleLabel.grid(row=1, column=2, columnspan=2,
                              padx=15, pady=15, sticky='nsew')
 
-        tk.Label(self, text="Configure keys", fg='white', font=(
-            'Verdana', 16, 'bold')).grid(row=3, column=2, pady=15, padx=15, sticky='nsew')
+        tk.Label(self, text="Configure", fg='black',bg="#41cd52", font=('Verdana', 16,)).grid(row=3, column=2, pady=15, padx=15, sticky='nsew')
+        tk.Label(self, text="Keys", fg='black',bg='#41cd52', font=('Verdana', 16,)).grid(row=3, column=3, pady=15, padx=15, sticky='nsew')
 
         self.key_data = [
-            {'name': 'up', 'key': 'W', 'label': 'UP'},
-            {'name': 'down', 'key': 'S', 'label': 'DOWN'},
-            {'name': 'left', 'key': 'A', 'label': 'LEFT'},
-            {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
-            {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
-            {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
-            {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
-            {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
+            {'name': 'left', 'key': 'A_key', 'label': 'Left_Steer'},
+            {'name': 'up', 'key': 'W_key', 'label': 'UP_Steer'},
+            {'name': 'down', 'key': 'S_key', 'label': 'DOWN_Steer'},
+            {'name': 'right', 'key': 'S_key', 'label': 'Right_Steer'},
+            {'name': 'gun fire', 'key': 'Left_key', 'label': 'GUN FIRE'},
+            {'name': 'booster', 'key': 'Right_key', 'label': 'BOOSTER'},
+            {'name': 'missiles', 'key': 'Up_key', 'label': 'FIRE MISSILES'},
+            {'name': 'flares', 'key': 'Down_Key', 'label': 'FLARES'},
         ]
         self.keys = []
         for i, key in enumerate(self.key_data):
@@ -259,7 +396,7 @@ class AircraftSteeringPage(SubPage):
 class SingleHandPage(SubPage):
     def __init__(self, parent: tk.Frame, controller: App):
         super().__init__(parent, controller)
-        self.page_mode = 4
+        self.page_mode = SINGLE_HAND_MODE
         self.title = "Single hand gesture control"
         self.frame = self
         self.titleLabel = tk.Label(
@@ -268,14 +405,11 @@ class SingleHandPage(SubPage):
                              padx=15, pady=15, sticky='nsew')
 
         self.key_data = [
-            {'name': 'up', 'key': 'W', 'label': 'UP'},
-            {'name': 'down', 'key': 'S', 'label': 'DOWN'},
-            {'name': 'left', 'key': 'A', 'label': 'LEFT'},
-            {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
-            {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
-            {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
-            {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
-            {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
+            {'name': 'up', 'key': 'Right', 'label': 'Control Hand'},
+            {'name': 'up', 'key': 'Right', 'label': 'Close Hand'},
+            {'name': 'down', 'key': 'Idle', 'label': 'Open Hand'},
+            {'name': 'down', 'key': 'Press O', 'label': 'Exit'},
+
         ]
         self.keys = []
         for i, key in enumerate(self.key_data):
@@ -289,7 +423,7 @@ class SingleHandPage(SubPage):
 class RacingPage(SubPage):
     def __init__(self, parent: tk.Frame, controller: App):
         super().__init__(parent, controller)
-        self.page_mode = 5
+        self.page_mode = RACING_MODE
         self.title = "Racing gesture control"
         self.frame = self
         self.titleLabel = tk.Label(
@@ -298,14 +432,11 @@ class RacingPage(SubPage):
                              padx=15, pady=15, sticky='nsew')
 
         self.key_data = [
-            {'name': 'up', 'key': 'W', 'label': 'UP'},
-            {'name': 'down', 'key': 'S', 'label': 'DOWN'},
-            {'name': 'left', 'key': 'A', 'label': 'LEFT'},
-            {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
-            {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
-            {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
-            {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
-            {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
+            {'name': 'up', 'key': 'Right', 'label': 'R_Steer'},
+            {'name': 'left', 'key': 'Space', 'label': 'Nitro'},
+            {'name': 'right', 'key': 'Down', 'label': 'Brake'},
+            {'name': 'down', 'key': 'Left', 'label': 'L_Steer'},
+
         ]
         self.keys = []
         for i, key in enumerate(self.key_data):
@@ -319,7 +450,7 @@ class RacingPage(SubPage):
 class JumpPage(SubPage):
     def __init__(self, parent: tk.Frame, controller: App):
         super().__init__(parent, controller)
-        self.page_mode = 5
+        self.page_mode = JUMP_MODE
         self.title = "Jump gesture control"
         self.frame = self
         self.titleLabel = tk.Label(
@@ -328,14 +459,11 @@ class JumpPage(SubPage):
                              padx=15, pady=15, sticky='nsew')
 
         self.key_data = [
-            {'name': 'up', 'key': 'W', 'label': 'UP'},
-            {'name': 'down', 'key': 'S', 'label': 'DOWN'},
-            {'name': 'left', 'key': 'A', 'label': 'LEFT'},
-            {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
-            {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
-            {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
-            {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
-            {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
+            {'name': 'up', 'key': 'Up', 'label': 'Jump'},
+            {'name': 'left', 'key': 'Idle', 'label': 'Stand'},
+            {'name': 'down', 'key': 'Down', 'label': 'DOWN'},
+            {'name': 'down', 'key': 'V Sign', 'label': 'Active Mode'},
+
         ]
         self.keys = []
         for i, key in enumerate(self.key_data):
@@ -349,7 +477,7 @@ class JumpPage(SubPage):
 class FruitNinjaPage(SubPage):
     def __init__(self, parent: tk.Frame, controller: App):
         super().__init__(parent, controller)
-        self.page_mode = 5
+        self.page_mode = FRUITNINJA_MODE
         self.title = "Fruit ninja control"
         self.frame = self
         self.titleLabel = tk.Label(
@@ -358,14 +486,11 @@ class FruitNinjaPage(SubPage):
                              padx=15, pady=15, sticky='nsew')
 
         self.key_data = [
-            {'name': 'up', 'key': 'W', 'label': 'UP'},
-            {'name': 'down', 'key': 'S', 'label': 'DOWN'},
-            {'name': 'left', 'key': 'A', 'label': 'LEFT'},
-            {'name': 'right', 'key': 'S', 'label': 'RIGHT'},
-            {'name': 'gun fire', 'key': 'left', 'label': 'GUN FIRE'},
-            {'name': 'booster', 'key': 'right', 'label': 'BOOSTER'},
-            {'name': 'missiles', 'key': 'up', 'label': 'FIRE MISSILES'},
-            {'name': 'flares', 'key': 'down', 'label': 'DEPLOY FLARES'},
+            {'name': 'up', 'key': 'Control', 'label': 'One Finger'},
+            {'name': 'down', 'key': 'Raise Pinky', 'label': 'Ges_Activate'},
+            {'name': 'left', 'key': 'Move Index', 'label': 'Slice Fruits'},
+            {'name': 'right', 'key': 'Press O', 'label': 'Exit_Key'},
+
         ]
         self.keys = []
         for i, key in enumerate(self.key_data):
@@ -397,9 +522,9 @@ class VRPage(tk.Frame):
         # Place the background image on the canvas
         self.canvas.create_image(0, 0, image=self.bg_img, anchor='nw')
 
-        self.url = 'http://192.168.0.100:5000/video_feed'
+        self.url = 'http://192.168.0.105:5000/video_feed'
 
-        label = tk.Label(self, text="VR is enabled. Go to your mobile and paste this url",
+        label = tk.Label(self, text="VR Gaming Mode Enabled. Enter the link Below in Your Browser",
                          font=LARGEFONT, bg=BG_COLOR, fg='white')
         label.place(x=self.width/2, y=self.height/2-100, anchor='c',)
         url_label = tk.Label(self, text=self.url,
@@ -411,7 +536,35 @@ class VRPage(tk.Frame):
         go_back.place(x=self.width/2, y=100, anchor='c')
 
 
+def on_change_mode(*args):
+    global game_mode
+    global mode
+    global console_active_thread
+    if mode.get() == 1:
+        # Dual hand gesture code
+        pass
+    elif mode.get() == 2:
+        # Full body gesture code
+        pass
+    elif mode.get() == 3:
 
+        # Aircraft steering code
+        pass
+    elif mode.get() == 4:
+        # Single Hand code
+        pass
+    elif mode.get() == 5:
+        # Racing gesture code
+        pass
+    elif mode.get() == 6:
+        # Racing gesture code
+        pass
+    elif mode.get() == 7:
+        # Racing gesture code
+        pass
+    else:
+        print(mode.get())
+        # No gesture code / deactivate
 
 
 app = App()
